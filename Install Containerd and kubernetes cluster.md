@@ -92,7 +92,7 @@ systemctl enable kubelet
 systemctl start kubelet
 ```
 
-> !!! Next step install containerd and kubernetes on workernode !!!
+> !!! Next step install containerd and kubernetes on every workernode !!!
 
 
 ## Step 6 Init kubernetes cluster
