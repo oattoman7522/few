@@ -69,7 +69,7 @@ systemctl restart containerd
 systemctl enable containerd
 ```
 
-## Step 4 Install Kubernetes
+## Step 5 Install Kubernetes
 
 ```
 cat <<EOF > /etc/yum.repos.d/kubernetes.repo
@@ -92,10 +92,10 @@ systemctl enable kubelet
 systemctl start kubelet
 ```
 
-# !!! Next step install containerd and kubernetes on workernode !!!
+> !!! Next step install containerd and kubernetes on workernode !!!
 
 
-## Step 5 Init kubernetes cluster
+## Step 6 Init kubernetes cluster
 
 ```
 kubeadm init --apiserver-advertise-address=(IP of masternode) --pod-network-cidr=10.244.0.0/16
@@ -107,7 +107,7 @@ sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ```
 
-## Step 6 Install network plugin 
+## Step 7 Install network plugin 
 
 ```
 kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
