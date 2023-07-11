@@ -1,0 +1,119 @@
+---
+- name: Prerequisites install containerd
+  ansible.builtin.copy:
+    content: |
+      overlay
+      br_netfilter
+    dest: /etc/modules-load.d/containerd.conf
+    mode: '0644'
+
+- name: Add module1
+  ansible.builtin.command: "modprobe overlay"
+  changed_when: true
+
+- name: Add module2
+  ansible.builtin.command: "modprobe br_netfilter"
+  changed_when: true
+
+- name: Prerequisites containerd
+  ansible.builtin.copy:
+    content: |
+      net.bridge.bridge-nf-call-iptables  = 1
+      net.ipv4.ip_forward                 = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+    dest: /etc/sysctl.d/99-kubernetes-cri.conf
+    mode: '0644'
+
+- name: Disable swap1
+  ansible.builtin.command: "swapoff -a"
+  changed_when: true
+
+- name: Disable swap2
+  ansible.builtin.command: "sed -i '/swap/d' /etc/fstab"
+  changed_when: true
+
+- name: Install package
+  ansible.builtin.yum:
+    name:
+      - yum-utils
+      - device-mapper-persistent-data
+      - lvm2
+      - tc
+    state: present
+
+- name: Download file repo
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/centos/docker-ce.repo
+    dest: /etc/yum.repos.d/
+    mode: '0644'
+
+- name: Add repo
+  ansible.builtin.get_url:
+    url: http://mirror.centos.org/centos/7/extras/x86_64/Packages/container-selinux-2.107-1.el7_6.noarch.rpm
+    dest: /root/
+    mode: '0644'
+
+- name: Enable repo
+  ansible.builtin.command: yum-config-manager --enable \*
+  changed_when: true
+
+- name: Disable local repo
+  ansible.builtin.template:
+    src: /root/playbooks/roles/kubeadm/templates/OL79.repo.j2
+    dest: /etc/yum.repos.d/OL79.repo
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Install package python3
+  ansible.builtin.yum:
+    name: python3
+    state: present
+
+- name: Install package python
+  ansible.builtin.yum:
+    name: policycoreutils-python
+    state: present
+
+- name: Install containerd-selinux
+  ansible.builtin.command: rpm -ivh --force container-selinux-2.107-1.el7_6.noarch.rpm
+  changed_when: true
+
+# - name: Yum update
+#  ansible.builtin.command: yum update
+#  changed_when: false
+
+- name: Yum update
+  ansible.builtin.yum:
+    update_cache: true
+
+- name: Yum install containerd
+  ansible.builtin.yum:
+    name: containerd
+    state: present
+
+- name: Make Directory
+  ansible.builtin.file:
+    path: /etc/containerd
+    state: directory
+    recurse: true
+    owner: root
+    group: root
+
+- name: Set containerd.toml
+  ansible.builtin.template:
+    src: /root/playbooks/roles/kubeadm/templates/config.toml.j2
+    dest: /etc/containerd/config.toml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Restart service containerd
+  ansible.builtin.service:
+    name: containerd
+    state: restarted
+
+- name: Enable service containerd
+  ansible.builtin.service:
+    name: containerd
+    enabled: true

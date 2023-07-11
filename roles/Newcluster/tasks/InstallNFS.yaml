@@ -1,0 +1,36 @@
+---
+- name: Download_helm_script
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+    dest: '{{ download_path }}/get_helm.sh'
+    mode: '0700'
+
+- name: Run_script
+  ansible.builtin.shell: |
+    {{ download_path }}/get_helm.sh
+    yum install nfs-utils
+  changed_when: true
+
+- name: Make_file_for_nfs
+  ansible.builtin.file:
+    path: '{{ download_path }}/nfs-share'
+    state: directory
+    mode: '0755'
+
+- name: Mount an NFS volume
+  ansible.posix.mount:
+    src: "{{ nfs.server }}:{{ nfs.path }}"
+    path: /nfs-share
+    opts: defaults
+    state: mounted
+    fstype: nfs
+
+- name: Kube_nfs
+  ansible.builtin.shell: |
+    kubectl create ns nfs
+    helm repo add nfs-subdir-external-provisioner https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/
+    helm install nfs-subdir-external-provisioner nfs-subdir-external-provisioner/nfs-subdir-external-provisioner \
+    --set nfs.server={{ nfs.server }} \
+    --set nfs.path={{ nfs.path }}/dev
+    kubectl patch storageclass nfs-client -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+  changed_when: true

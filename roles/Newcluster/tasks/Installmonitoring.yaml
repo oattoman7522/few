@@ -1,0 +1,37 @@
+- name: Helm_add_repo
+  ansible.builtin.command: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+  changed_when: true
+
+- name: Helm_repo_update
+  ansible.builtin.command: helm repo update
+  changed_when: true
+
+- name: Kube_check_ns
+  ansible.builtin.shell: |
+    "kubectl get namespace | grep monitoring"
+  register: ns
+  changed_when: true
+
+- name: Kube_ns_monitoring
+  ansible.builtin.command: kubectl create ns monitoring
+  when: ns == ''
+  changed_when: true
+
+- name: Helm_install
+  ansible.builtin.shell: |
+    helm upgrade -i -n monitoring prometheus prometheus-community/kube-prometheus-stack --set prometheus.service.type=NodePort --set alertmanager.alertmanagerSpec.tolerations[0].key={{ monitor.key }} --set alertmanager.alertmanagerSpec.tolerations[0].operator={{ monitor.operator }} --set alertmanager.alertmanagerSpec.tolerations[0].effect={{ monitor.effect }} --set prometheusOperator.tolerations[0].key={{ monitor.key }} --set prometheusOperator.tolerations[0].operator={{ monitor.operator }} --set prometheusOperator.tolerations[0].effect={{ monitor.effect }} --set prometheus.prometheusSpec.tolerations[0].key={{ monitor.key }} --set prometheus.prometheusSpec.tolerations[0].operator={{ monitor.operator }} --set prometheus.prometheusSpec.tolerations[0].effect={{ monitor.effect }} --set prometheusOperator.nodeSelector."node-role\.kubernetes\.io/{{ monitor.nodeSelector }}"="" --set alertmanager.alertmanagerSpec.nodeSelector."node-role\.kubernetes\.io/{{ monitor.nodeSelector }}"="" --set prometheus.prometheusSpec.nodeSelector."node-role\.kubernetes\.io/{{ monitor.nodeSelector }}"=""
+  changed_when: true
+
+- name: Kube_edit_deploy
+  ansible.builtin.shell: |
+    kubectl patch -n monitoring deployments prometheus-grafana {{ arg_edit }} -p
+    kubectl patch -n monitoring deployments prometheus-kube-state-metrics {{ arg_edit }} -p
+    kubectl patch -n monitoring deployments prometheus-kube-prometheus-operator {{ arg_edit }} -p
+    kubectl patch -n monitoring deployments prometheus-grafana {{ arg_edit }} -p
+    kubectl patch svc prometheus-grafana --type='json' -p '[{"op":"replace","path":"/spec/type","value":"NodePort"},{"op":"replace","path":"/spec/ports/0/nodePort","value":{{ svc_port.grafana }}}]' -n monitoring
+  loop:
+    - '{"spec": {"template": {"spec": {"nodeSelector": {"{{ monitor.key }}": ""}}}}}'
+    - '{"spec": {"template": { "spec": {"tolerations": [{"effect":"NoSchedule","key":"{{ monitor.key }}","operator": "Exists"}]}}}}'
+  loop_control:
+    loop_var: arg_edit
+  changed_when: true

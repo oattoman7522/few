@@ -1,0 +1,39 @@
+---
+- name: Lab
+  hosts: jenkinstest
+  roles:
+  - sonarqube
+
+- name: Test
+  hosts: localhost
+  vars_files: vars.yaml
+  tasks:
+  - name: Frist
+    ansible.builtin.debug:
+      msg: "{{ variables }}"
+
+  - name: Two
+    ansible.builtin.command: date
+    register: command_output
+    changed_when: true
+
+  - name: Debug
+    ansible.builtin.debug:
+      var: command_output.stdout
+
+  - name: Loop
+    ansible.builtin.debug:
+      msg: "{{ my_string }}"
+    loop:
+    - I
+    - AM
+    - ansible
+    loop_control:
+      loop_var: my_string
+    register: loop_output
+
+  - name: Debug
+    vars:
+      _query: results[? my_string == 'I']
+    ansible.builtin.debug:
+      var: loop_output | community.general.json_query(_query)

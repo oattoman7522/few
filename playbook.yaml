@@ -1,0 +1,10 @@
+---
+# - name: Install Kubernetes
+#  hosts: HOME
+#  roles:
+#  - kubeadm
+
+- name: Init cluster
+  hosts: RAOT-TRTAHV-K8SM1
+  roles:
+  - Newcluster

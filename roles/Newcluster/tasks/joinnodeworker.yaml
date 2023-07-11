@@ -1,0 +1,4 @@
+---
+- name: Join worker node
+  ansible.builtin.command: "{{ kubeadm_join_worker }}"
+  changed_when: true

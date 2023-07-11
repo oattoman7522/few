@@ -1,0 +1,122 @@
+---
+- name: Create User
+  ansible.builtin.user:
+    name: sonarqube
+
+- name: Download file zip sonarqube
+  ansible.builtin.get_url:
+    url: https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-10.0.0.68432.zip
+    dest: /opt/
+    mode: '755'
+
+- name: Unzip file
+  ansible.builtin.unarchive:
+    src: /opt/sonarqube-10.0.0.68432.zip
+    dest: /opt/
+    remote_src: true
+
+- name: Install java
+  ansible.builtin.yum:
+    name:
+    - java-17-openjdk
+    state: present
+
+- name: Crate file service sonarqube
+  ansible.builtin.template:
+    src: /root/playbooks/roles/sonarqube/templates/sonarqube.service.j2
+    dest: /etc/systemd/system/sonarqube.service
+    mode: '755'
+
+- name: Install packeage postgresql
+  ansible.builtin.yum:
+    name:
+    - libicu
+    - perl-libs
+    state: present
+
+- name: Download key
+  ansible.builtin.rpm_key:
+    key: http://download.postgresql.org/pub/repos/yum/RPM-GPG-KEY-PGDG-13
+
+- name: Download repo postgresql
+  ansible.builtin.yum:
+    name: https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+    state: present
+
+- name: Disable module postgresql
+  ansible.builtin.command: dnf -qy module disable postgresql
+  register: _disable_output
+  changed_when: _disable_output.rc == 0
+
+- name: Install postgresql
+  ansible.builtin.yum:
+    name: "{{ postgresql_version }}"
+    state: present
+
+- name: Check file InitDB
+  ansible.builtin.stat:
+    path: /var/lib/pgsql/13/data/postgresql.conf
+  register: initfile
+
+- name: Echo initfile
+  ansible.builtin.debug:
+    var: initfile
+
+- name: InitDB
+  ansible.builtin.command: /usr/pgsql-13/bin/postgresql-13-setup initdb
+  register: _init_output
+  changed_when: true
+  when: not initfile.stat.exists
+
+- name: Start service postgresql
+  ansible.builtin.service:
+    name: "{{ postgresql_13 }}"
+    state: started
+
+- name: Create User sonar
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    user: sonar
+    password: "sonar"
+    state: present
+
+- name: Cretae DATABASE
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: sonarqube
+    encoding: UTF-8
+    state: present
+    owner: sonar
+
+- name: Config sonarqube
+  ansible.builtin.template:
+    src: /root/playbooks/roles/sonarqube/templates/sonar.properties.j2
+    dest: /opt/sonarqube-10.0.0.68432/conf/sonar.properties
+    mode: '755'
+
+- name: Daemon-reload
+  ansible.builtin.systemd:
+    daemon-reload: true
+
+- name: Chown directory
+  ansible.builtin.file:
+    path: /opt/sonarqube-10.0.0.68432/
+    state: directory
+    recurse: true
+    owner: sonarqube
+    group: sonarqube
+
+- name: Start sonarqube
+  become: true
+  become_user: sonarqube
+  ansible.builtin.service:
+    name: sonarqube
+    state: started
+
+- name: Stop firewall
+  become: true
+  ansible.builtin.service:
+    name: firewalld
+    state: stopped

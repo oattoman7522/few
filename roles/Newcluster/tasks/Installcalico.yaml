@@ -1,0 +1,21 @@
+---
+- name: Install calico
+  ansible.builtin.template:
+    src: /root/playbooks/roles/Newcluster/templates/calico.yaml.j2
+    dest: /root/calico.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create calico
+  ansible.builtin.command: kubectl create -f /root/calico.yaml
+  changed_when: true
+
+- name: Get Pod
+  ansible.builtin.command: kubectl get pod -owide -n kube-system
+  changed_when: true
+  register: namepod
+
+- name: Debug pod
+  ansible.builtin.debug:
+    var: namepod

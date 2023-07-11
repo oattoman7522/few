@@ -1,0 +1,4 @@
+---
+- name: Reset cluster
+  ansible.builtin.command: kubeadm reset cleanup-node --force
+  changed_when: true

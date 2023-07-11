@@ -1,0 +1,29 @@
+---
+- name: Initialize the Kubernetes
+  ansible.builtin.command: kubeadm init --cri-socket unix:///run/containerd/containerd.sock --pod-network-cidr=10.233.64.0/16 --control-plane-endpoint={{ ipmaster1 }} --upload-certs
+  register: commandjoin
+  changed_when: true
+
+- name: Set variables
+  vars:
+    _query_kubeconfig_command: stdout_lines[? contains(@, 'kubeadm join') || contains(@, '--discovery') || contains(@, '--control-plane')]
+  ansible.builtin.set_fact:
+    kubejoin_command: '{{ commandjoin | community.general.json_query(_query_kubeconfig_command) }}'
+
+- name: Echo kubejoin_command
+  ansible.builtin.debug:
+    var: kubejoin_command
+
+- name: Join master
+  vars:
+    regex: \\\t
+    replacement: ""
+  ansible.builtin.set_fact:
+   kubeadm_join_master: "{{ kubejoin_command[:3] | join('') | regex_replace(regex, replacement) }}"
+
+- name: Join worker
+  vars:
+    regex: \\\t
+    replacement: ""
+  ansible.builtin.set_fact:
+   kubeadm_join_worker: "{{ kubejoin_command[3:5] | join('') | regex_replace(regex, replacement) }}"

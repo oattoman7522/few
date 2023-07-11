@@ -1,0 +1,4 @@
+---
+- name: Join master node
+  ansible.builtin.command: "{{ kubeadm_join_master }}"
+  changed_when: true

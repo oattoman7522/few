@@ -1,0 +1,27 @@
+---
+- name: Prerequisites install containerd
+  ansible.builtin.copy:
+    content: |
+      [kubernetes]
+      name=Kubernetes
+      baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+      enabled=1
+      gpgcheck=1
+      repo_gpgcheck=0
+      gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+    dest: /etc/yum.repos.d/kubernetes.repo
+    mode: '0644'
+
+- name: Install service kubernetes
+  ansible.builtin.yum:
+    name:
+      - kubeadm-1.22.1
+      - kubelet-1.22.1
+      - kubectl-1.22.1
+    state: present
+
+- name: Enable service kubelet
+  ansible.builtin.service:
+    name: kubelet
+    state: started
+    enabled: true

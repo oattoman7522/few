@@ -1,0 +1,116 @@
+---
+- name: Download_istio
+  ansible.builtin.get_url:
+    url: https://istio.io/downloadIstio
+    dest: '{{ download_path }}'
+    mode: '0644'
+  changed_when: true
+
+- name: Chmod_IstioDownloader
+  ansible.builtin.command: chmod 777 {{ download_path }}/downloadIstioCandidate.sh
+  changed_when: true
+
+- name: Exec_Downloader
+  ansible.builtin.shell: sh {{ download_path }}/downloadIstioCandidate.sh
+  environment:
+    ISTIO_VERSION: 1.14.1
+    TARGET_ARCH: x86_64
+  changed_when: true
+
+- name: GoTo_IstioFile
+  ansible.builtin.command: cd {{ download_path }}/istio-1.14.1/bin
+  changed_when: true
+
+- name: Set_HomePath
+  ansible.builtin.copy:
+    dest: "/etc/profile.d/istio-ver.sh"
+    mode: '0644'
+    content: |
+      PATH={{ ansible_env.HOME }}/.istioctl/bin:{{ ansible_env.PATH }}
+
+########################## for check remote env_var##########################
+# - name: Ansible playbook to retrieve environment variables on linux servers.
+#   ansible.builtin.debug:
+#     msg: "{{ ansible_env }}"
+#############################################################################
+
+- name: Init_Istio
+  ansible.builtin.command: '{{ istioBinaryPath.path }} operator init'
+  changed_when: true
+
+- name: Config_Istio
+  ansible.builtin.copy:
+    content: |
+      apiVersion: install.istio.io/v1alpha1
+      kind: IstioOperator
+      metadata:
+        namespace: istio-system
+        name: istiocontrolplane
+      spec:
+        profile: demo
+        components:
+          pilot:
+            k8s:
+              nodeSelector:
+                {{node_selector.label}}: ""
+              tolerations:
+              - key: {{tolerations.key}}
+                operator: {{tolerations.operator}}
+                effect: {{tolerations.effect}}
+          egressGateways:
+          - name: istio-egressgateway
+            enabled: true
+            k8s:
+              nodeSelector:
+                {{node_selector.label}}: ""
+              tolerations:
+              - key: {{tolerations.key}}
+                operator: {{tolerations.operator}}
+                effect: {{tolerations.effect}}
+              overlays:
+              - apiVersion: apps/v1
+                kind: Deployment
+                name: istio-egressgateway
+                patches:
+                - path: kind
+                  value: DaemonSet
+                - path: spec.strategy
+                - path: spec.updateStrategy
+                  value:
+                    rollingUpdate:
+                      maxUnavailable: 33%
+                    type: RollingUpdate
+          ingressGateways:
+          - name: istio-ingressgateway
+            enabled: true
+            k8s:
+              nodeSelector:
+                {{node_selector.label}}: ""
+              tolerations:
+              - key: {{tolerations.key}}
+                operator: {{tolerations.operator}}
+                effect: {{tolerations.effect}}
+              overlays:
+              - apiVersion: apps/v1
+                kind: Deployment
+                name: istio-ingressgateway
+                patches:
+                - path: kind
+                  value: DaemonSet
+                - path: spec.strategy
+                - path: spec.updateStrategy
+                  value:
+                    rollingUpdate:
+                      maxUnavailable: 33%
+                    type: RollingUpdate
+
+    dest: "{{ download_path }}/istio-operator.yaml"
+    mode: '0644'
+
+- name: ApplyIstio
+  ansible.builtin.command: kubectl apply -f istio-operator.yaml
+  changed_when: true
+
+- name: SetLoadBalacer
+  ansible.builtin.command: kubectl patch svc istio-ingressgateway -p '{"spec":{"externalIPs":["{{ infra_ip[0] }}"]}}' -n istio-system
+  changed_when: true

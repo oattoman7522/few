@@ -1,0 +1,33 @@
+---
+ipmaster1: 10.99.71.48
+ip_: 10.233.64.0/16
+infra_ip:
+  - 10.0.2.15
+
+node_selector:
+  label: node-role.kubernetes.io/master
+
+tolerations:
+  key: node-role.kubernetes.io/master
+  operator: Exists
+  value: reserved
+  effect: NoSchedule
+
+istioBinaryPath:
+  path: /root/istio-1.14.1/bin/istioctl
+
+download_path: /root
+
+monitor:
+  key: node-role.kubernetes.io/master
+  operator: Exists
+  effect: NoSchedule
+  nodeSelector: master
+  label: infra-monitor
+
+svc_port:
+  grafana: 30030
+
+nfs:
+ server: 192.168.200.1
+ path: /NFS-Share/dev

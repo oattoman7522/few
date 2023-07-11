@@ -1,0 +1,6 @@
+---
+postgresql_version: postgresql13-server
+postgresql_13: postgresql-13
+psql_user: sonar
+psql_pass: sonar
+xmx: -Xmx512m
