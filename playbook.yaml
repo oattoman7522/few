@@ -4,7 +4,12 @@
 #  roles:
 #  - kubeadm
 
-- name: Init cluster
-  hosts: RAOT-TRTAHV-K8SM1
+- name: Reset cluster
+  hosts: ALLNODES
   roles:
-  - Newcluster
+  - Resetcluster
+
+# - name: Init cluster
+#   hosts: RAOT-TRTAHV-K8SM1
+#   roles:
+#   - Newcluster

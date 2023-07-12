@@ -1,30 +1,26 @@
 ---
-- name: Reset cluster
-  ansible.builtin.import_tasks: Resetcluster.yaml
-  delegate_to: "10.99.71.47"
+- name: Initcluster
+  ansible.builtin.import_tasks: Initcluster.yaml
 
-# - name: Initcluster
-#   ansible.builtin.import_tasks: Initcluster.yaml
+- name: Join Master
+  ansible.builtin.import_tasks: joinnodemaster.yaml
+  delegate_to: MASTER
 
-# - name: Join Master
-#   ansible.builtin.import_tasks: joinnodemaster.yaml
-#   delegate_to: MASTER
+- name: Join Worker
+  ansible.builtin.import_tasks: joinnodeworker.yaml
+  delegate_to: WORKER
 
-# - name: Join Worker
-#   ansible.builtin.import_tasks: joinnodeworker.yaml
-#   delegate_to: WORKER
+- name: Set kube config
+  ansible.builtin.import_tasks: setkubeconfig.yaml
 
-# - name: Set kube config
-#   ansible.builtin.import_tasks: setkubeconfig.yaml
+- name: Install Isito
+  ansible.builtin.import_tasks: Isito.yaml
 
-# - name: Install Isito
-#   ansible.builtin.import_tasks: Isito.yaml
+- name: Install helm
+  ansible.builtin.import_tasks: Installhelm.yaml
 
-# - name: Install helm
-#   ansible.builtin.import_tasks: Installhelm.yaml
+- name: Install helm
+  ansible.builtin.import_tasks: Installmonitoring.yaml
 
-# - name: Install helm
-#   ansible.builtin.import_tasks: Installmonitoring.yaml
-
-# - name: InstallNFS.yaml
-#   ansible.builtin.import_tasks: InstallNFS.yaml
+- name: InstallNFS.yaml
+  ansible.builtin.import_tasks: InstallNFS.yaml

@@ -1,5 +1,4 @@
 ---
 - name: Reset cluster
   ansible.builtin.command: kubeadm reset --force
-  delegate_to: "{{ cluster_ip }}"
   changed_when: true
