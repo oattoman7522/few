@@ -9,7 +9,7 @@
   roles:
   - Resetcluster
 
-# - name: Init cluster
-#   hosts: RAOT-TRTAHV-K8SM1
-#   roles:
-#   - Newcluster
+- name: Init cluster
+  hosts: RAOT-TRTAHV-K8SM1
+  roles:
+  - Newcluster
