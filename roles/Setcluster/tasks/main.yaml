@@ -1,0 +1,15 @@
+---
+# - name: Set Label
+#   ansible.builtin.import_tasks: Setlabel.yaml
+
+- name: Install Isito
+  ansible.builtin.import_tasks: Isito.yaml
+
+# - name: Install helm
+#   ansible.builtin.import_tasks: Installhelm.yaml
+
+# - name: Install monitoring
+#   ansible.builtin.import_tasks: Installmonitoring.yaml
+
+# - name: InstallNFS.yaml
+#   ansible.builtin.import_tasks: InstallNFS.yaml

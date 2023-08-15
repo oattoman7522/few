@@ -1,0 +1,37 @@
+---
+- name: Define variables
+  vars:
+    _query_protected_branches: "[? length(json) > to_number('0') ].dest_project_id"
+    _project_ids_with_protect_branches: "{{ async_protected_branches_results.results
+      | community.general.json_query(_query_protected_branches) | map('string') }}"
+    _query_full_path: "[? contains(to_array({{ _project_ids_with_protect_branches }}), to_string(id)) ]"
+  ansible.builtin.set_fact:
+    project_ids_with_protect_branches: "{{ dest_projects | community.general.json_query(_query_full_path) }}"
+
+- name: Unprotect default branch of all projects on gitlab destination
+  community.general.gitlab_protected_branch:
+    api_url: '{{ gitlab_protocol }}://{{ gitlab_dest }}'
+    api_token: '{{ gitlab_dest_token }}'
+    project: '{{ item.path_with_namespace }}'
+    name: '{{ item.default_branch }}'
+    state: absent
+    merge_access_levels: maintainer
+    push_access_level: maintainer
+    validate_certs: false
+  async: 600
+  poll: 0
+  register: _async_unprotect_branch
+  loop: '{{ project_ids_with_protect_branches }}'
+  loop_control:
+    label: '{{ item.path_with_namespace }}'
+
+- name: Check async unprotecting branch status
+  ansible.builtin.async_status:
+    jid: '{{ async_result_item.ansible_job_id }}'
+  loop: '{{ _async_unprotect_branch.results }}'
+  loop_control:
+    loop_var: async_result_item
+    label: '{{ async_result_item.item.path_with_namespace }}'
+  register: async_poll_results
+  until: async_poll_results.finished
+  retries: 50

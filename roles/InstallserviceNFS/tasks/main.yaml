@@ -1,0 +1,32 @@
+---
+- name: Install nfs-client
+  ansible.builtin.yum:
+    name: nfs-utils
+    state: present
+
+- name: Start service
+  ansible.builtin.service:
+    name: nfs-server
+    state: started
+    enabled: true
+
+- name: Create user
+  ansible.builtin.user:
+    name: nfsnobody
+    state: present
+
+- name: Mkdir file
+  ansible.builtin.file:
+    path: "{{ path_dest }}"
+    state: directory
+    owner: nfsnobody
+    group: nfsnobody
+    mode: '0755'
+
+- name: Mount an NFS volume
+  ansible.posix.mount:
+    src: "{{ ip_src }}:{{ path_src }}"
+    path: "{{ path_dest }}"
+    opts: defaults
+    state: mounted
+    fstype: nfs

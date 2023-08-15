@@ -1,0 +1,16 @@
+---
+gitlab_src: 10.99.71.35
+gitlab_src_token: T7v3J7XAyAwQGCsu6Bu2
+gitlab_dest: 10.99.71.60
+gitlab_dest_username: root
+gitlab_dest_token: i1zscS2i1qhuWXG_x966
+gitlab_protocol: http
+allow_mirror_deletion: false
+
+# gitlab_src: 192.168.34.11
+# gitlab_src_token: glpat-J2pjxsJzd7_3fvwVxJEz
+# gitlab_dest: 192.168.34.12
+# gitlab_dest_username: root
+# gitlab_dest_token: glpat-iM9k45izdafcnyFHQCZ6
+# gitlab_protocol: http
+# allow_mirror_deletion: true

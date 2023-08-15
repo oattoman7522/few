@@ -1,0 +1,3 @@
+- name: Join worker node
+  ansible.builtin.command: '{{ hostvars["RAOT-TRTAHV-K8SM1"]["kubeadm_join_worker"] }}'
+  changed_when: true

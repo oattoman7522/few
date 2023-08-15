@@ -1,0 +1,4 @@
+---
+- name: Join master node
+  ansible.builtin.command: '{{ hostvars["RAOT-TRTAHV-K8SM1"]["kubeadm_join_master"] }}'
+  changed_when: true

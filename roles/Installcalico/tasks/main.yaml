@@ -1,0 +1,2 @@
+- name: Initcluster
+  ansible.builtin.import_tasks: Installcalico.yaml

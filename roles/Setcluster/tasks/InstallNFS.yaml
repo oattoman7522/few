@@ -1,0 +1,20 @@
+---
+- name: Kube_nfs_1
+  ansible.builtin.command: kubectl create ns nfs
+  changed_when: true
+
+- name: Kube_nfs_2
+  ansible.builtin.command: helm repo add nfs-subdir-external-provisioner "{{ provision_nfs }}"
+  changed_when: true
+
+- name: Kube_nfs_3
+  ansible.builtin.shell: |
+    helm install nfs-subdir-external-provisioner nfs-subdir-external-provisioner/nfs-subdir-external-provisioner -n nfs \
+    --set nfs.server={{ nfs.server }} \
+    --set nfs.path={{ nfs.path }}
+  changed_when: true
+
+- name: Kube_nfs_4
+  ansible.builtin.shell: |
+    kubectl patch storageclass nfs-client -n nfs -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+  changed_when: true

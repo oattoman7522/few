@@ -1,0 +1,56 @@
+---
+- name: Get all groups on gitlab destination
+  ansible.builtin.uri:
+    url: '{{ gitlab_protocol }}://{{ gitlab_dest }}/api/v4/groups?per_page={{ per_page }}&page={{ item }}'
+    method: GET
+    headers:
+      PRIVATE-TOKEN: '{{ gitlab_dest_token }}'
+    validate_certs: false
+  register: _dest_groups_new
+  with_sequence: '{{ pages }}'
+  loop_control:
+    label: page {{ item }}
+
+- name: Get all groups on gitlab destination
+  vars:
+    _flatter: "[].json[]"
+  ansible.builtin.set_fact:
+    dest_groups: '{{ _dest_groups_new.results | community.general.json_query(_flatter) }}'
+
+- name: Create subgroups
+  vars:
+    _parent_full_path: "{{ item.full_path.split('/' + item.path) | first }}"
+    _query_parent_id: "[? full_path == '{{ _parent_full_path }}'].id"
+    parent_id: '{{ dest_groups | community.general.json_query(_query_parent_id) | first }}'
+  ansible.builtin.uri:
+    url: '{{ gitlab_protocol }}://{{ gitlab_dest }}/api/v4/groups'
+    method: POST
+    headers:
+      PRIVATE-TOKEN: '{{ gitlab_dest_token }}'
+    body_format: json
+    body:
+      name: '{{ item.name }}'
+      path: '{{ item.path }}'
+      project_creation_level: '{{ item.project_creation_level }}'
+      subgroup_creation_level: '{{ item.subgroup_creation_level }}'
+      visibility: '{{ item.visibility }}'
+      parent_id: '{{ parent_id }}'
+    status_code: 201
+    validate_certs: false
+  async: 600
+  poll: 0
+  register: _async_create_subgroups
+  loop: '{{ subgroup_list }}'
+  loop_control:
+    label: '{{ item.full_path }}'
+
+- name: Check async creating subgroups status
+  ansible.builtin.async_status:
+    jid: '{{ async_result_item.ansible_job_id }}'
+  loop: '{{ _async_create_subgroups.results }}'
+  loop_control:
+    loop_var: async_result_item
+    label: '{{ async_result_item.item.full_path }}'
+  register: async_poll_results
+  until: async_poll_results.finished
+  retries: 50

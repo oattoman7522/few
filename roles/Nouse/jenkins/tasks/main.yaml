@@ -1,0 +1,35 @@
+---
+  - name: Curl repo
+    ansible.builtin.get_url:
+      url: https://pkg.jenkins.io/redhat-stable/jenkins.repo
+      dest: /etc/yum.repos.d/jenkins.repo
+      mode: '755'
+
+  - name: Rpm file
+    ansible.builtin.rpm_key:
+      state: present
+      key: https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+
+  - name: Yum install pasckage
+    ansible.builtin.yum:
+      name:
+      - fontconfig
+      - java-17-openjdk
+      - jenkins
+      state: present
+
+  - name: Edit file config
+    ansible.builtin.template:
+      src: /root/playbooks/roles/jenkins/templates/jenkins.service.j2
+      dest: /usr/lib/systemd/system/jenkins.service
+      mode: '755'
+
+  - name: Start service jenkins
+    ansible.builtin.service:
+      name: jenkins
+      state: started
+
+  - name: Stop firewall
+    ansible.builtin.service:
+      name: firewalld
+      state: stopped

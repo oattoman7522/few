@@ -1,0 +1,3 @@
+path_src: /TRT-K8SPV-PRD
+path_dest: /nfs-share
+ip_src: TRTFILESRV.raot.co.th

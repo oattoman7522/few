@@ -1,0 +1,33 @@
+---
+- name: Delete old mirror on gitlab source
+  ansible.builtin.uri:
+    url: '{{ gitlab_protocol }}://{{ gitlab_src }}/api/v4/projects/{{ item.id }}/remote_mirrors/{{ mirror_id }}'
+    method: DELETE
+    headers:
+      PRIVATE-TOKEN: '{{ gitlab_src_token }}'
+    status_code: 204
+    validate_certs: false
+  register: _deleted_mirror
+  loop: '{{ _mirror_list | community.general.json_query("[].id") }}'
+  loop_control:
+    loop_var: mirror_id
+    label: mirror {{ mirror_id }}
+  when: allow_mirror_deletion and _mirror_list | length > 0
+
+- name: Get mirror deletion status
+  ansible.builtin.set_fact:
+    _deleted_mirror_status: '{{ _deleted_mirror.results | community.general.json_query("[].status") }}'
+
+- name: Create a new push mirror on gitlab source
+  ansible.builtin.uri:
+    url: '{{ gitlab_protocol }}://{{ gitlab_src }}/api/v4/projects/{{ item.id }}/remote_mirrors'
+    method: POST
+    body_format: json
+    body:
+      url: '{{ gitlab_protocol }}://{{ gitlab_dest_username }}:{{ gitlab_dest_token }}@{{ _repo }}'
+      enabled: true
+    headers:
+      PRIVATE-TOKEN: '{{ gitlab_src_token }}'
+    status_code: 201
+    validate_certs: false
+  when: _mirror_list | length <= 0 or _deleted_mirror_status | length > 0

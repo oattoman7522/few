@@ -1,0 +1,31 @@
+infra_ip: 10.0.2.15
+
+node_selector:
+  label: node-role.kubernetes.io/infra-router
+
+tolerations:
+  key: node-role.kubernetes.io/infra-router
+  operator: Exists
+  value: reserved
+  effect: NoSchedule
+
+istiobinarypath:
+  path: /root/istio-1.14.1/bin/istioctl
+
+download_path: /root
+
+monitor:
+  key: node-role.kubernetes.io/master
+  operator: Exists
+  effect: NoSchedule
+  nodeSelector: master
+  label: infra-monitor
+
+svc_port:
+  grafana: 30030
+
+nfs:
+ server: TRTFILESRV.raot.co.th
+ path: /TRT-K8SPV-PRD
+
+provision_nfs: https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/

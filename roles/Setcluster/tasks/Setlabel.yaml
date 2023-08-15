@@ -1,0 +1,32 @@
+---
+- name: Label infra1
+  ansible.builtin.command: kubectl label node raot-trtahv-infra1 node-role.kubernetes.io/infra-router=""
+  changed_when: true
+
+- name: Taint infra1
+  ansible.builtin.command: kubectl taint node raot-trtahv-infra1 infra-router=reserved:NoSchedule
+  changed_when: true
+
+- name: Label infra2
+  ansible.builtin.command: kubectl label node raot-trtahv-infra2 node-role.kubernetes.io/infra-router=""
+  changed_when: true
+
+- name: Taint infra2
+  ansible.builtin.command: kubectl taint node raot-trtahv-infra2 infra-router=reserved:NoSchedule
+  changed_when: true
+
+- name: Label monitor1
+  ansible.builtin.command: kubectl label node raot-trtahv-monitor1 node-role.kubernetes.io/infra-monitor=""
+  changed_when: true
+
+- name: Taint monitor1
+  ansible.builtin.command: kubectl taint node raot-trtahv-monitor1 infra-monitor=reserved:NoSchedule
+  changed_when: true
+
+- name: Label monitor2
+  ansible.builtin.command: kubectl label node raot-trtahv-monitor2 node-role.kubernetes.io/infra-monitor=""
+  changed_when: true
+
+- name: Taint monitor2
+  ansible.builtin.command: kubectl taint node raot-trtahv-monitor2 infra-monitor=reserved:NoSchedule
+  changed_when: true

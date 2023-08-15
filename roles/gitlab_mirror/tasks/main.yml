@@ -1,0 +1,281 @@
+---
+- name: Get one group on gitlab source
+  ansible.builtin.uri:
+    url: "{{ gitlab_protocol }}://{{ gitlab_src }}/api/v4/groups?per_page=1&page=1"
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_src_token }}"
+    validate_certs: false
+  register: gitlab_source_group
+
+- name: Get one project on gitlab source
+  ansible.builtin.uri:
+    url: "{{ gitlab_protocol }}://{{ gitlab_src }}/api/v4/projects?per_page=1&page=1"
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_src_token }}"
+    validate_certs: false
+  register: gitlab_source_project
+
+- name: Define variables
+  ansible.builtin.set_fact:
+    src_group_length: "{{ gitlab_source_group.x_total }}"
+    src_project_length: "{{ gitlab_source_project.x_total }}"
+    src_group_pages: "{{ (gitlab_source_group.x_total | int / 100) | round(0, 'ceil') | int }}"
+    src_project_pages: "{{ (gitlab_source_project.x_total | int / 100) | round(0, 'ceil') | int }}"
+
+- name: Get all groups on gitlab source
+  ansible.builtin.uri:
+    url: "{{ gitlab_protocol }}://{{ gitlab_src }}/api/v4/groups?per_page=100&page={{ item }}"
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_src_token }}"
+    validate_certs: false
+  register: _src_groups_raw
+  with_sequence: "1-{{ src_group_pages }}"
+  loop_control:
+    label: page {{ item }}
+
+- name: Get all groups on gitlab destination
+  ansible.builtin.uri:
+    url: "{{ gitlab_protocol }}://{{ gitlab_dest }}/api/v4/groups?per_page=100&page={{ item }}"
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_dest_token }}"
+    validate_certs: false
+  register: _dest_groups_raw
+  with_sequence: "1-{{ src_group_pages }}"
+  loop_control:
+    label: page {{ item }}
+
+- name: Set variables
+  vars:
+    _dest_groups: '{{ _dest_groups_raw.results | community.general.json_query("[].json[]") }}'
+    _src_groups: '{{ _src_groups_raw.results | community.general.json_query("[].json[]") }}'
+    _filter: "[] | sort_by(@, &length(full_path))"
+  ansible.builtin.set_fact:
+    src_groups: "{{ _src_groups | community.general.json_query(_filter) }}"
+    dest_groups: "{{ _dest_groups | community.general.json_query(_filter) }}"
+
+- name: List all groups that are not created on gitlab destination
+  vars:
+    _src_group_list: "{{ src_groups | community.general.json_query('[].full_path') }}"
+    _dest_group_list: "{{ dest_groups | community.general.json_query('[].full_path') }}"
+  ansible.builtin.set_fact:
+    _diff_group_list: "{{ _src_group_list | difference(_dest_group_list) }}"
+
+- name: Create groups on gitlab destination
+  vars:
+    _diff_group_split: "{{ _diff_group_list | map('split', '/') }}"
+    max_subgroup_level: "{{ _diff_group_split | map('length') | max }}"
+  ansible.builtin.import_tasks: gitlab_create_groups.yml
+  when: _diff_group_list | length > 0
+
+- name: Get all projects on gitlab source
+  ansible.builtin.uri:
+    url: "{{ gitlab_protocol }}://{{ gitlab_src }}/api/v4/projects?per_page=100&page={{ item }}"
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_src_token }}"
+    validate_certs: false
+  register: _src_projects_raw
+  with_sequence: "1-{{ src_project_pages }}"
+  loop_control:
+    label: page {{ item }}
+
+- name: Get all projects on gitlab source
+  vars:
+    _src_projects: '{{ _src_projects_raw.results | community.general.json_query("[].json[]") }}'
+    _query_project: "[? namespace.kind == 'group']"
+  ansible.builtin.set_fact:
+    src_projects: "{{ _src_projects | community.general.json_query(_query_project) }}"
+
+- name: Get all projects on gitlab destination
+  ansible.builtin.uri:
+    url: "{{ gitlab_protocol }}://{{ gitlab_dest }}/api/v4/projects?per_page=100&page={{ item }}"
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_dest_token }}"
+    validate_certs: false
+  register: _dest_projects_raw
+  with_sequence: "1-{{ src_project_pages }}"
+  loop_control:
+    label: page {{ item }}
+
+- name: Get all projects on gitlab destination
+  vars:
+    _dest_projects: '{{ _dest_projects_raw.results | community.general.json_query("[].json[]") }}'
+    _query_project: "[? namespace.kind == 'group']"
+  ansible.builtin.set_fact:
+    dest_projects: "{{ _dest_projects | community.general.json_query(_query_project) }}"
+
+- name: Get projects that have not been created on gitlab destination
+  vars:
+    _src_projects: '{{ src_projects | community.general.json_query("[].path_with_namespace") }}'
+    _dest_projects: '{{ dest_projects | community.general.json_query("[].path_with_namespace") }}'
+  ansible.builtin.set_fact:
+    diff_projects: "{{ _src_projects | difference(_dest_projects) }}"
+
+- name: Get projects to be created
+  vars:
+    _query: "[? contains({{ diff_projects }}, path_with_namespace) && default_branch != null ]"
+  ansible.builtin.set_fact:
+    projects_to_be_created: "{{ src_projects | community.general.json_query(_query) }}"
+  when: diff_projects | length > 0
+
+- name: Create projects on gitlab destination
+  community.general.gitlab_project:
+    api_url: "{{ gitlab_protocol }}://{{ gitlab_dest }}"
+    api_token: "{{ gitlab_dest_token }}"
+    name: "{{ item.name }}"
+    path: "{{ item.path }}"
+    group: "{{ item.namespace.full_path }}"
+    default_branch: "{{ item.default_branch }}"
+    state: present
+    initialize_with_readme: true
+    visibility: "{{ item.visibility }}"
+    validate_certs: false
+  async: 600
+  poll: 0
+  register: _async_create_projects
+  loop: "{{ projects_to_be_created }}"
+  loop_control:
+    label: "{{ item.path_with_namespace }}"
+  when: diff_projects | length > 0
+
+- name: Check async creating projects status
+  ansible.builtin.async_status:
+    jid: "{{ async_result_item.ansible_job_id }}"
+  loop: "{{ _async_create_projects.results }}"
+  loop_control:
+    loop_var: async_result_item
+    label: "{{ async_result_item.item.path_with_namespace }}"
+  register: async_poll_results
+  until: async_poll_results.finished
+  retries: 50
+  when: diff_projects | length > 0
+
+- name: Get all projects on gitlab destination
+  ansible.builtin.uri:
+    url: "{{ gitlab_protocol }}://{{ gitlab_dest }}/api/v4/projects?per_page=100&page={{ item }}"
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_dest_token }}"
+    validate_certs: false
+  register: _dest_projects_raw
+  with_sequence: "1-{{ src_project_pages }}"
+  loop_control:
+    label: page {{ item }}
+
+- name: Get all projects on gitlab destination
+  vars:
+    _dest_projects: '{{ _dest_projects_raw.results | community.general.json_query("[].json[]") }}'
+    _query_project: "[? namespace.kind == 'group']"
+  ansible.builtin.set_fact:
+    dest_projects: "{{ _dest_projects | community.general.json_query(_query_project) }}"
+
+- name: Get all protected branches
+  ansible.builtin.uri:
+    url: "{{ gitlab_protocol }}://{{ gitlab_dest }}/api/v4/projects/{{ dest_project_id }}/protected_branches"
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_dest_token }}"
+    status_code: 200
+    validate_certs: false
+  async: 600
+  poll: 0
+  register: _async_protected_branches
+  loop: '{{ dest_projects | community.general.json_query("[].id") }}'
+  loop_control:
+    loop_var: dest_project_id
+
+- name: List all mirrors on gitlab source
+  ansible.builtin.uri:
+    url: '{{ gitlab_protocol }}://{{ gitlab_src }}/api/v4/projects/{{ item.id }}/remote_mirrors'
+    method: GET
+    headers:
+      PRIVATE-TOKEN: '{{ gitlab_src_token }}'
+    status_code: 200
+    validate_certs: false
+  async: 600
+  poll: 0
+  register: _async_mirrors_list
+  loop: '{{ src_projects }}'
+  loop_control:
+    label: '{{ item.path_with_namespace }}'
+
+- name: Check async getting protected branches
+  ansible.builtin.async_status:
+    jid: "{{ async_result_item.ansible_job_id }}"
+  loop: "{{ _async_protected_branches.results }}"
+  loop_control:
+    loop_var: async_result_item
+    label: "{{ async_result_item.dest_project_id }}"
+  register: async_protected_branches_results
+  until: async_protected_branches_results.finished
+  retries: 50
+
+- name: Check async getting mirrors list
+  ansible.builtin.async_status:
+    jid: "{{ async_result_item.ansible_job_id }}"
+  loop: "{{ _async_mirrors_list.results }}"
+  loop_control:
+    loop_var: async_result_item
+    label: "{{ async_result_item.item.path_with_namespace }}"
+  register: async_mirrors_list_results
+  until: async_mirrors_list_results.finished
+  retries: 50
+
+- name: Unprotect default branch of all projects on gitlab destination
+  ansible.builtin.import_tasks: gitlab_unprotect_branch.yml
+
+- name: Create push mirrors on gitlab source
+  vars:
+    _dest_project_path: '{{ item.path_with_namespace }}'
+    _repo: '{{ gitlab_dest }}/{{ _dest_project_path }}.git'
+    _query_mirror: "[? async_result_item.item.id == to_number('{{ item.id }}')].json[? enabled == true][? contains(url, '{{ _repo }}')]"
+    _mirror_list: '{{ async_mirrors_list_results.results | community.general.json_query(_query_mirror) | flatten }}'
+  ansible.builtin.include_tasks: gitlab_create_mirror.yml
+  loop: '{{ src_projects }}'
+  loop_control:
+    label: '{{ item.path_with_namespace }}'
+
+- name: List all mirrors on gitlab source for report
+  ansible.builtin.uri:
+    url: '{{ gitlab_protocol }}://{{ gitlab_src }}/api/v4/projects/{{ item.id }}/remote_mirrors'
+    method: GET
+    headers:
+      PRIVATE-TOKEN: '{{ gitlab_src_token }}'
+    status_code: 200
+    validate_certs: false
+  register: _current_mirrors
+  loop: '{{ src_projects }}'
+  loop_control:
+    label: '{{ item.path_with_namespace }}'
+
+- name: Show report
+  vars:
+    msg: |
+      {% set tab = " " * 35 %}
+      REPORT TIME {{ ansible_date_time.iso8601 }}
+      ========== GitLab Repository Mirroring =========================================================
+      PROJECT                            MIRROR
+      ================================================================================================
+      {% for src_project in src_projects %}
+      {% set _repo = gitlab_dest + '/' + src_project.path_with_namespace %}
+      {% set _query_mirror = "[? item.id == to_number('" + src_project.id | string + "')].json[? enabled == true][].url" %}
+      {% set mirror = _current_mirrors.results | community.general.json_query(_query_mirror) %}
+      {% set line_mirror = tab + mirror | join('\n' + tab) %}
+      {{ src_project.path_with_namespace }}
+      {{ line_mirror }}
+      ------------------------------------------------------------------------------------------------
+      {% endfor %}
+  ansible.builtin.debug:
+    msg: "{{ msg | split('\n') }}"
+  register: _report
+
+- name: Write report to a file
+  ansible.builtin.copy:
+    content: '{{ _report.msg }}'
+    dest: /tmp/gitlab_mirror_report
+    mode: '644'

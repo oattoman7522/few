@@ -1,0 +1,60 @@
+---
+- name: Get all groups that are not created on destination yet
+  vars:
+    _query: '[? contains({{ _diff_group_list }}, full_path)]'
+  ansible.builtin.set_fact:
+    diff_groups: '{{ src_groups | community.general.json_query(_query) }}'
+
+- name: Sort groups by parent
+  vars:
+    _query_non_parent: '[? parent_id == null]'
+    _query_parent: '[? parent_id != null]'
+  ansible.builtin.set_fact:
+    diff_groups_non_parent: '{{ diff_groups | community.general.json_query(_query_non_parent) }}'
+    diff_groups_parent: '{{ diff_groups | community.general.json_query(_query_parent) }}'
+
+- name: Create non-parent groups
+  ansible.builtin.uri:
+    url: '{{ gitlab_protocol }}://{{ gitlab_dest }}/api/v4/groups'
+    method: POST
+    headers:
+      PRIVATE-TOKEN: '{{ gitlab_dest_token }}'
+    body_format: json
+    body:
+      name: '{{ item.name }}'
+      path: '{{ item.path }}'
+      project_creation_level: '{{ item.project_creation_level }}'
+      subgroup_creation_level: '{{ item.subgroup_creation_level }}'
+      visibility: '{{ item.visibility }}'
+    status_code: 201
+    validate_certs: false
+  async: 600
+  poll: 0
+  register: _async_create_groups
+  loop: '{{ diff_groups_non_parent }}'
+  loop_control:
+    label: '{{ item.full_path }}'
+  when: diff_groups_non_parent | length > 0
+
+- name: Check async creating non-parent groups status
+  ansible.builtin.async_status:
+    jid: '{{ async_result_item.ansible_job_id }}'
+  loop: '{{ _async_create_groups.results }}'
+  loop_control:
+    loop_var: async_result_item
+    label: '{{ async_result_item.item.full_path }}'
+  register: async_poll_results
+  until: async_poll_results.finished
+  retries: 50
+
+- name: Create subgroups
+  vars:
+    _query_level: "[? length(@) == to_number('{{ subgroup_level }}')]"
+    _subgroup_list: "{{ _diff_group_split | community.general.json_query(_query_level) | map('join', '/') | flatten }}"
+    _query_subgroups: "[? contains({{ _subgroup_list }}, full_path)]"
+    subgroup_list: "{{ diff_groups_parent | community.general.json_query(_query_subgroups) }}"
+  ansible.builtin.include_tasks: gitlab_create_subgroups.yml
+  with_sequence: 2-{{ max_subgroup_level }}
+  loop_control:
+    loop_var: subgroup_level
+  when: _subgroup_list | length > 0
